@@ -3,28 +3,29 @@
 #include "file_search.h"
 #include "matcher.h"
 
-#define MAX_LINE 1024  // max characters in one line
+#define MAX_LINE 1024
 
-void search_file(const char *filename, const char *pattern) {
-
-    // Step 1: try to open the file
+void search_file(const char *filename, const char *pattern)
+{
     FILE *fp = fopen(filename, "r");
-    if (fp == NULL) {
-        printf("Error: Could not open file %s\n", filename);
+    if (fp == NULL)
+    {
+        printf("Sorry, your file named %s, did not open.\n", filename);
         return;
     }
 
     char line[MAX_LINE];
     int line_number = 1;
 
-    // Step 2: read the file line by line
-    while (fgets(line, MAX_LINE, fp) != NULL) {
+    while (fgets(line, MAX_LINE, fp) != NULL)
+    {
+        // Remove trailing newline character (VERY IMPORTANT)
+        line[strcspn(line, "\n")] = '\0';
 
-        // Step 3: pass line to the matcher
-        if (match(pattern, line)) {
-
-            // Step 4: print line number and the line itself
-            printf("%d: %s", line_number, line);
+        // Run the matcher
+        if (match(pattern, line))
+        {
+            printf("%d: %s\n", line_number, line);
         }
 
         line_number++;

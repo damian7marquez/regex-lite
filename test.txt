@@ -1,4 +1,0 @@
-hello world
-The quick brown fox
-This is a test
-Regex is cool
