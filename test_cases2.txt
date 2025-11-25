@@ -1,0 +1,35 @@
+hello world
+hello there
+hallo again
+hxllo with x
+hllo (missing e/a)
+hhhello many h
+HeLLo mixed case
+h3llo numbers
+haallo double a
+hillo wrong vowel
+HELLO uppercase
+hillo end
+This is the end
+The quick brown fox
+The end
+The ending is near
+The day is fun
+abc
+abbbc
+ac
+b
+empty line follows
+
+12345
+test?
+yes?
+no??!
+abc123xyz
+zzzzz
+A-Z only
+range test aaa
+range test mmm
+range test zzz
+start match only
+end match
