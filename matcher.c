@@ -1,17 +1,67 @@
 #include "matcher.h"
 
-// Forward declarations
+/* forward declarations */
 static int match_here(const char *pattern, const char *text);
-static int match_star(char c, const char *pattern, const char *text);
-static int match_set(const char *pattern, const char *text, int *jump);
+static int match_class(const char *pattern, char c, int *len);
+static int match_one(const char *pattern, char c, int *len);
 
-// Entry point
-int match(const char *pattern, const char *text) {
+/* match_class: checks things like [abc] or [a-z] */
+/* it looks inside the [ ] and decides if the character fits */
+static int match_class(const char *pattern, char c, int *len) {
+    int i = 1;              /* skip the first '[' */
+    int matched = 0;        /* this becomes 1 if the character fits */
 
-    if (pattern[0] == '^') {
-        return match_here(pattern + 1, text);
+    /* go through everything between [ and ] */
+    while (pattern[i] != ']' && pattern[i] != '\0') {
+
+        /* handle ranges like [a-z] */
+        if (pattern[i+1] == '-' && pattern[i+2] != ']' && pattern[i+2] != '\0') {
+            char start = pattern[i];
+            char end   = pattern[i+2];
+
+            /* check if c is between start and end */
+            if (c >= start && c <= end)
+                matched = 1;
+
+            i += 3;     /* skip "a-z" */
+            continue;
+        }
+
+        /* handle single characters like [abc] */
+        if (pattern[i] == c)
+            matched = 1;
+
+        i++;
     }
 
+    *len = i + 1;       /* the total length of the class, including ']' */
+    return matched;
+}
+
+/* match_one: checks ONE pattern piece */
+/* this can be a single letter OR a whole [class] */
+static int match_one(const char *pattern, char c, int *len) {
+
+    /* if it starts with [ then it is a class */
+    if (pattern[0] == '[') {
+        return match_class(pattern, c, len);
+    }
+
+    /* otherwise it is just a normal character */
+    *len = 1;
+    return pattern[0] == c;
+}
+
+/* match: the function that starts everything */
+/* if pattern starts with ^ we ONLY match at the beginning */
+/* otherwise we try every position in the text */
+int match(const char *pattern, const char *text) {
+
+    /* pattern begins with ^ means: must match at the very start */
+    if (pattern[0] == '^')
+        return match_here(pattern + 1, text);
+
+    /* try matching starting at every text position */
     do {
         if (match_here(pattern, text))
             return 1;
@@ -20,106 +70,70 @@ int match(const char *pattern, const char *text) {
     return 0;
 }
 
-// Recursive matcher
+/* match_here: the main matcher function */
+/* it tries to match the pattern step by step */
 static int match_here(const char *pattern, const char *text) {
 
-    // End of pattern => match
-    if (*pattern == '\0')
+    /* if we finished the pattern, it matched successfully */
+    if (pattern[0] == '\0')
         return 1;
 
-    // Handle $
+    /* if pattern ends in $, text must also be finished */
     if (pattern[0] == '$' && pattern[1] == '\0')
         return *text == '\0';
 
-    // Handle character set [abc]
-    if (pattern[0] == '[') {
-        int jump = 0;
-
-        if (*text == '\0')
-            return 0;
-
-        if (match_set(pattern, text, &jump)) {
-            return match_here(pattern + jump, text + 1);
-        }
-
-        return 0;
-    }
-
-    // Handle x*
-    if (pattern[1] == '*') {
-        return match_star(pattern[0], pattern + 2, text);
-    }
-
-    // Handle x?
+    /* X? = this letter is optional */
     if (pattern[1] == '?') {
 
-        // Case 1 — use the character
-        if (*text != '\0' && pattern[0] == text[0]) {
-            if (match_here(pattern + 2, text + 1))
+        int len = 0;
+        match_one(pattern, text[0], &len);
+
+        /* try using the character */
+        if (match_one(pattern, text[0], &len) && text[0] != '\0') {
+            if (match_here(pattern + len + 1, text + 1))
                 return 1;
         }
 
-        // Case 2 — skip the optional character
-        return match_here(pattern + 2, text);
+        /* or try skipping it */
+        return match_here(pattern + len + 1, text);
     }
 
-    // Literal match
-    if (*text != '\0' && pattern[0] == text[0]) {
-        return match_here(pattern + 1, text + 1);
-    }
+    /* X* = this letter can repeat many times (or zero times) */
+    {
+        int len = 0;
+        match_one(pattern, text[0], &len);
 
-    return 0;
-}
+        /* if the next character in pattern is * */
+        if (pattern[len] == '*') {
 
-// Handle x*
-static int match_star(char c, const char *pattern, const char *text) {
+            /* case 1: try skipping all the repeated letters */
+            if (match_here(pattern + len + 1, text))
+                return 1;
 
-    // Try zero repetitions
-    if (match_here(pattern, text))
-        return 1;
+            /* case 2: try using 1 or more repeated letters */
+            int i = 0;
+            while (text[i] != '\0' &&
+                   match_one(pattern, text[i], &len)) {
 
-    // Consume as many matching chars as possible
-    while (*text != '\0' && *text == c) {
-        text++;
-        if (match_here(pattern, text))
-            return 1;
-    }
+                if (match_here(pattern + len + 1, text + i + 1))
+                    return 1;
 
-    return 0;
-}
-
-// Handle [abc] or [a-z]
-static int match_set(const char *pattern, const char *text, int *jump) {
-
-    int i = 1;
-    int matched = 0;
-
-    while (pattern[i] != ']' && pattern[i] != '\0') {
-
-        // Handle range a-z
-        if (pattern[i+1] == '-' && pattern[i+2] != ']' && pattern[i+2] != '\0') {
-
-            char start = pattern[i];
-            char end   = pattern[i+2];
-
-            if (*text >= start && *text <= end) {
-                matched = 1;
+                i++;
             }
 
-            i += 3;
-        }
-
-        else {
-            // Single character
-            if (pattern[i] == *text) {
-                matched = 1;
-            }
-            i++;
+            return 0;
         }
     }
 
-    // jump past the closing ']'
-    *jump = i + 1;
+    /* normal match: literal or class */
+    {
+        int len = 0;
 
-    return matched;
+        /* if one character matches, move to the next */
+        if (match_one(pattern, text[0], &len) && text[0] != '\0')
+            return match_here(pattern + len, text + 1);
+    }
+
+    /* if nothing matched, fail */
+    return 0;
 }
